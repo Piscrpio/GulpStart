@@ -1,13 +1,15 @@
 var gulp = require('gulp');
 var sass = require('gulp-sass');
 var browserSync = require('browser-sync');
-var useref = require('gulp-useref');
-var uglify = require('gulp-uglify');
-var gulpIf = require('gulp-if');
-var cssnano = require('gulp-cssnano');
+var useref = require('gulp-useref'); //html里零碎的这些引入合并成一个文件，但是它不负责代码压缩。
+var uglify = require('gulp-uglify'); //使用gulp-uglify压缩js文件
+var gulpIf = require('gulp-if'); //条件判断
+var cssnano = require('gulp-cssnano'); //css的压缩
 var imagemin = require('gulp-imagemin');
-var cache = require('gulp-cache');
+var pngquant = require('imagemin-pngquant'); //使用pngquant深度压缩png图片的imagemin插件
+var cache = require('gulp-cache'); //使用”gulp-cache”只压缩修改的图片
 var del = require('del');
+var base64 = require('gulp-base64');
 var runSequence = require('run-sequence');
 var babel = require("gulp-babel");
 var autoprefixer = require('gulp-autoprefixer');
@@ -37,18 +39,18 @@ gulp.task('sass', function() {
             cascade: true, //是否美化属性值 默认：true 像这样：
             remove: true //是否去掉不必要的前缀 默认：true
         }))
+        .pipe(base64())
         .pipe(gulp.dest('app/css')) // Outputs it in the css folder
         .pipe(browserSync.reload({ // Reloading with Browser Sync
             stream: true
         }));
 })
 gulp.task('convertJS', function() {
-    return gulp.src('app/js/*.js')
+    return gulp.src('app/ES6/*.js')
         .pipe(babel({
             presets: ['es2015']
         }))
-        .pipe(uglify())
-        .pipe(gulp.dest('dist/js'))
+        .pipe(gulp.dest('app/js'))
 })
 
 // Watchers
@@ -65,6 +67,7 @@ gulp.task('watch', function() {
 gulp.task('useref', function() {
     return gulp.src('app/*.html')
         .pipe(useref())
+        .pipe(gulpIf('*.js', uglify()))
         .pipe(gulpIf('*.css', cssnano()))
         .pipe(gulp.dest('dist'));
 });
@@ -74,7 +77,11 @@ gulp.task('images', function() {
     return gulp.src('app/images/**/*.+(png|jpg|jpeg|gif|svg)')
         // Caching images that ran through imagemin
         .pipe(cache(imagemin({
-            interlaced: true,
+            optimizationLevel: 5, //类型：Number  默认：3  取值范围：0-7（优化等级）
+            progressive: true, //类型：Boolean 默认：false 无损压缩jpg图片
+            interlaced: true, //类型：Boolean 默认：false 隔行扫描gif进行渲染
+            multipass: true, //类型：Boolean 默认：false 多次优化svg直到完全优化
+            use: [pngquant()] //使用pngquant深度压缩png图片的imagemin插件
         })))
         .pipe(gulp.dest('dist/images'))
 });
@@ -101,7 +108,7 @@ gulp.task('clean:dist', function() {
 // ---------------
 
 gulp.task('default', function(callback) {
-    runSequence(['sass', 'browserSync'], 'watch',
+    runSequence(['sass', 'convertJS', 'browserSync'], 'watch',
         callback
     )
 })
